@@ -1,4 +1,21 @@
 SQL Data Analysis Project
+Table of Contents
+1.Identifying First and Last Call Recipients
+2.Identifying Students with Mid-Range Exam Scores
+3.Comparing Outgoing and Incoming Call Durations
+4.Filtering Candidates Based on Cumulative Salary Constraints
+5.Hierarchical Employee Management Query
+6.SQL Query for Daily and Monthly Financial Balances
+7.Analyzing Driver Rides
+8.Identifying Players Winning Only Gold Medals
+9.Calculating Business Days Between Two Dates
+10.Determining Match Outcomes for Each Team
+11.Identifying New and Repeat Customers
+12.Tracking Employee Visits to Floors
+13.Finding Next Sunday for Given Dates
+14.Retrieving Last Day Sales for Previous Months
+
+
 Problem 1: Identifying First and Last Call Recipients for Each Caller per Day
 Table:
 
