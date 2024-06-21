@@ -1,0 +1,519 @@
+SQL Data Analysis Project
+Problem 1: Identifying First and Last Call Recipients for Each Caller per Day
+Table:
+
+CREATE TABLE phonelog (
+    Caller Id INT, 
+    Recipientid INT,
+    Datecalled DATETIME
+);
+
+INSERT INTO phonelog (Callerid, Recipientid, Datecalled)
+VALUES
+    (1, 2, '2019-01-01 09:00:00.000'),
+    (1, 3, '2019-01-01 17:00:00.000'),
+    (1, 4, '2019-01-01 23:00:00.000'),
+    (2, 5, '2019-07-05 09:00:00.000'),
+    (2, 3, '2019-07-05 17:00:00.000'),
+    (2, 3, '2019-07-05 17:20:00.000'),
+    (2, 5, '2019-07-05 23:00:00.000'),
+    (2, 3, '2019-08-01 09:00:00.000'),
+    (2, 3, '2019-08-01 17:00:00.000'),
+    (2, 5, '2019-08-01 19:30:00.000'),
+    (2, 4, '2019-08-02 09:00:00.000'),
+    (2, 5, '2019-08-02 10:00:00.000'),
+    (2, 5, '2019-08-02 10:45:00.000'),
+    (2, 4, '2019-08-02 11:00:00.000');
+
+Solution:
+WITH CTE AS 
+(
+    SELECT 
+        Callerid,
+        CAST(Datecalled AS DATE) AS CALL_DATE,
+        MIN(Datecalled) AS MIN_DATE,
+        MAX(Datecalled) AS MAX_DATE
+    FROM 
+        phonelog
+    GROUP BY 
+        Callerid, CAST(Datecalled AS DATE)
+)
+SELECT 
+    A.Callerid,
+    A.CALL_DATE,
+    B.Recipientid AS First_Recipient,
+    C.Recipientid AS Last_Recipient
+FROM 
+    CTE A 
+JOIN 
+    phonelog B ON A.Callerid = B.Callerid AND A.MIN_DATE = B.Datecalled
+JOIN 
+    phonelog C ON A.Callerid = C.Callerid AND A.MAX_DATE = C.Datecalled
+WHERE 
+    B.Recipientid = C.Recipientid;
+
+Problem 2: Identifying Students with Mid-Range Exam Scores
+Question: You have a students table with student IDs and names, and an exams table with exam scores. Write a query to identify students who never scored the minimum or maximum score in any exam. The results should list student IDs for those who always had mid-range scores.
+CREATE TABLE students (
+    student_id INT,
+    student_name VARCHAR(20)
+);
+
+INSERT INTO students VALUES
+    (1, 'Daniel'),
+    (2, 'Jade'),
+    (3, 'Stella'),
+    (4, 'Jonathan'),
+    (5, 'Will');
+
+CREATE TABLE exams (
+    exam_id INT,
+    student_id INT,
+    score INT
+);
+
+INSERT INTO exams VALUES
+    (10, 1, 70),
+    (10, 2, 80),
+    (10, 3, 90),
+    (20, 1, 80),
+    (30, 1, 70),
+    (30, 3, 80),
+    (30, 4, 90),
+    (40, 1, 60),
+    (40, 2, 70),
+    (40, 4, 80);
+Solution:
+WITH CTE AS 
+(
+    SELECT 
+        exam_id,
+        MIN(score) AS MIN_SCORE,
+        MAX(score) AS MAX_SCORE
+    FROM 
+        exams
+    GROUP BY 
+        exam_id
+)
+SELECT 
+    B.student_id
+FROM 
+    CTE A 
+JOIN 
+    exams B ON A.exam_id = B.exam_id
+GROUP BY 
+    B.student_id
+HAVING 
+    MAX(CASE WHEN B.score = A.MIN_SCORE OR B.score = A.MAX_SCORE THEN 1 ELSE 0 END) = 0;
+
+
+Problem 3: Comparing Outgoing and Incoming Call Durations
+Question: Given a call_details table with information about outgoing (OUT) and incoming (INC) calls, identify call numbers that have more total outgoing call duration than incoming call duration. Each record includes the call type, call number, and call duration. List the call numbers that meet the criteria.
+SQL Problem:
+CREATE TABLE call_details (
+    call_type VARCHAR(10),
+    call_number VARCHAR(12),
+    call_duration INT
+);
+
+INSERT INTO call_details VALUES
+    ('OUT', '181868', 13),
+    ('OUT', '2159010', 8),
+    ('OUT', '2159010', 178),
+    ('SMS', '4153810', 1),
+    ('OUT', '2159010', 152),
+    ('OUT', '9140152', 18),
+    ('SMS', '4162672', 1),
+    ('SMS', '9168204', 1),
+    ('OUT', '9168204', 576),
+    ('INC', '2159010', 5),
+    ('INC', '2159010', 4),
+    ('SMS', '2159010', 1),
+    ('SMS', '4535614', 1),
+    ('OUT', '181868', 20),
+    ('INC', '181868', 54),
+    ('INC', '218748', 20),
+    ('INC', '2159010', 9),
+    ('INC', '197432', 66),
+    ('SMS', '2159010', 1),
+    ('SMS', '4535614', 1);
+
+WITH CTE AS 
+(
+    SELECT 
+        call_number,
+        SUM(CASE WHEN call_type = 'OUT' THEN call_duration ELSE 0 END) AS OUTCALL_DURATION,
+        SUM(CASE WHEN call_type = 'INC' THEN call_duration ELSE 0 END) AS INCCALL_DURATION,
+        COUNT(DISTINCT CASE WHEN call_type = 'OUT' THEN call_type END) AS OUT_CALLCOUNT,
+        COUNT(DISTINCT CASE WHEN call_type = 'INC' THEN call_type END) AS IN_CALLCOUNT
+    FROM 
+        call_details
+    WHERE  
+        call_type IN ('INC', 'OUT')
+    GROUP BY 
+        call_number
+    HAVING 
+        OUT_CALLCOUNT > 0 AND IN_CALLCOUNT > 0
+)
+SELECT 
+    A.call_number
+FROM 
+    CTE A 
+LEFT JOIN 
+    call_details B ON A.call_number = B.call_number
+GROUP BY 
+    A.call_number, A.OUTCALL_DURATION, A.INCCALL_DURATION
+HAVING  A.OUTCALL_DURATION > A.INCCALL_DURATION;
+Problem4: Filtering Candidates Based on Cumulative Salary Constraints
+CREATE TABLE candidates (
+    emp_id INT,
+    experience VARCHAR(20),
+    salary INT
+);
+INSERT INTO candidates VALUES
+(1, 'Junior', 10000),
+(2, 'Junior', 15000),
+(3, 'Junior', 40000),
+(4, 'Senior', 16000),
+(5, 'Senior', 20000),
+(6, 'Senior', 50000);
+Solution:
+WITH CTE AS 
+(
+    SELECT 
+        *,
+        SUM(salary) OVER (
+            PARTITION BY experience
+            ORDER BY salary
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+        ) AS SAL_RUNNING
+    FROM 
+        candidates
+),
+CTE2 AS 
+(
+    SELECT *
+    FROM CTE
+    WHERE experience = 'Senior' AND SAL_RUNNING < 70000
+),
+CTE3 AS 
+(
+    SELECT *
+    FROM CTE
+    WHERE 
+        experience = 'Junior' 
+        AND SAL_RUNNING <= 70000 - (SELECT SUM(salary) FROM CTE2)
+)
+SELECT *
+FROM CTE2
+UNION ALL
+SELECT *
+FROM CTE3;
+
+
+Problem 4:
+Hierarchical Employee Management Query
+Question:
+You are given an emp table that stores details of employees, including their managers. Each employee has an ID, a name, a department ID, a salary, a manager ID, and an age. Your task is to write a SQL query to retrieve each employee's details, their manager's name, and the name of their manager's manager (senior manager).
+-- Creating the emp table with appropriate columns
+CREATE TABLE emp (
+    emp_id INT,
+    emp_name VARCHAR(20),
+    department_id INT,
+    salary INT,
+    manager_id INT,
+    emp_age INT
+);
+
+-- Inserting values into the emp table
+INSERT INTO emp (emp_id, emp_name, department_id, salary, manager_id, emp_age) VALUES
+(1, 'Ankit', 100, 10000, 4, 39),
+(2, 'Mohit', 100, 15000, 5, 48),
+(3, 'Vikas', 100, 12000, 4, 37),
+(4, 'Rohit', 100, 14000, 2, 16),
+(5, 'Mudit', 200, 20000, 6, 55),
+(6, 'Agam', 200, 12000, 2, 14),
+(7, 'Sanjay', 200, 9000, 2, 13),
+(8, 'Ashish', 200, 5000, 2, 12),
+(9, 'Mukesh', 300, 6000, 6, 51),
+(10, 'Rakesh', 500, 7000, 6, 50);
+Solution:
+SELECT 
+    E.emp_id,
+    E.emp_name AS EMPNAME,
+    M.emp_name AS MANAGERNAME,
+    SM.emp_name AS SENIOR_MANAGERNAME
+FROM 
+    emp E
+LEFT JOIN 
+    emp M ON E.manager_id = M.emp_id
+LEFT JOIN 
+    emp SM ON M.manager_id = SM.emp_id;
+
+Problem 5:
+SQL Query for Daily and Monthly Financial Balances
+Objective: Analyze daily transaction amounts and compute cumulative monthly balances for financial reporting purposes.
+WITH CTE AS 
+(
+SELECT 
+    trans_date,
+    SUM(CASE 
+            WHEN type = 'WITHDRAW' THEN -amount  
+            WHEN type = 'DEPOSIT' THEN amount 
+            ELSE 0  -- Handle any other types gracefully (optional)
+        END) AS AMOUNT
+FROM 
+    transactions
+GROUP BY 
+    trans_date
+ORDER BY 
+    trans_date)
+    SELECT trans_date,AMOUNT,SUM(AMOUNT) OVER(PARTITION BY YEAR(trans_date),MONTH(trans_date) ORDER BY trans_date) AS BALANCE
+    FROM CTE ;  -- Optional: to sort results by date
+
+
+WITH CTE AS 
+(
+SELECT 
+    trans_date,
+    SUM(CASE 
+            WHEN type = 'WITHDRAW' THEN -amount  
+            WHEN type = 'DEPOSIT' THEN amount 
+            ELSE 0  -- Handle any other types gracefully (optional)
+        END) AS AMOUNT
+FROM 
+    transactions
+GROUP BY 
+    trans_date
+ORDER BY 
+    trans_date)
+    SELECT trans_date,AMOUNT,SUM(AMOUNT) OVER(PARTITION BY YEAR(trans_date),MONTH(trans_date) ORDER BY trans_date) AS BALANCE
+    FROM CTE ;  -- Optional: to sort results by date
+
+Problem 6:
+ Query for Analysing Driver Rides
+Objective: Analyze the driver rides based on start and end locations to determine consecutive rides where the end location matches the next ride's start location.
+reate table drivers(id varchar(10), start_time time, end_time time, start_loc varchar(10), end_loc varchar(10));
+insert into drivers values('dri_1', '09:00', '09:30', 'a','b'),('dri_1', '09:30', '10:30', 'b','c'),('dri_1','11:00','11:30', 'd','e');
+insert into drivers values('dri_1', '12:00', '12:30', 'f','g'),('dri_1', '13:30', '14:30', 'c','h');
+insert into drivers values('dri_2', '12:15', '12:30', 'f','g'),('dri_2', '13:30', '14:30', 'c','h')
+
+SELECT 
+    id,
+    COUNT(*) AS TOTAL_RIDES,
+    SUM(CASE WHEN end_loc = NEXTRIDE THEN 1 ELSE 0 END) AS CONSECUTIVE_RIDES
+FROM (
+    SELECT 
+        *,
+        LEAD(start_loc, 1) OVER (PARTITION BY id ORDER BY start_time) AS NEXTRIDE
+    FROM 
+        drivers
+) AS T
+GROUP BY 
+    Id;
+
+
+Problem 7:
+Problem where we need to find player with no of gold medals won by them only for players who won only gold medals
+CREATE TABLE events (
+ID int,
+event varchar(255),
+YEAR INt,
+GOLD varchar(255),
+SILVER varchar(255),
+BRONZE varchar(255)
+);
+
+delete from events;
+
+INSERT INTO events VALUES (1,'100m',2016, 'Amthhew Mcgarray','donald','barbara');
+INSERT INTO events VALUES (2,'200m',2016, 'Nichole','Alvaro Eaton','janet Smith');
+INSERT INTO events VALUES (3,'500m',2016, 'Charles','Nichole','Susana');
+INSERT INTO events VALUES (4,'100m',2016, 'Ronald','maria','paula');
+INSERT INTO events VALUES (5,'200m',2016, 'Alfred','carol','Steven');
+INSERT INTO events VALUES (6,'500m',2016, 'Nichole','Alfred','Brandon');
+INSERT INTO events VALUES (7,'100m',2016, 'Charles','Dennis','Susana');
+INSERT INTO events VALUES (8,'200m',2016, 'Thomas','Dawn','catherine');
+INSERT INTO events VALUES (9,'500m',2016, 'Thomas','Dennis','paula');
+INSERT INTO events VALUES (10,'100m',2016, 'Charles','Dennis','Susana');
+INSERT INTO events VALUES (11,'200m',2016, 'jessica','Donald','Stefeney');
+INSERT INTO events VALUES (12,'500m',2016,'Thomas','Steven','Catherine');
+
+Solution:
+SELECT GOLD AS PLAYER_NAME,COUNT(*) AS NOS
+FROM events
+WHERE GOLD NOT IN (SELECT SILVER FROM events UNION ALL SELECT BRONZE FROM events)
+GROUP BY GOLD 
+
+
+Problem 8:
+Find difference between 2 dates excluding weekends and public holidays  . Basically we need to find business days between 2 given dates 
+
+-- Create the `tickets` table
+CREATE TABLE tickets (
+    ticket_id VARCHAR(10),
+    create_date DATE,
+    resolved_date DATE
+);
+
+-- Insert data into the `tickets` table
+INSERT INTO tickets (ticket_id, create_date, resolved_date) VALUES
+(1, '2022-08-01', '2022-08-03'),
+(2, '2022-08-01', '2022-08-12'),
+(3, '2022-08-01', '2022-08-16');
+
+-- Create the `holidays` table
+CREATE TABLE holidays (
+    holiday_date DATE,
+    reason VARCHAR(100)
+);
+
+-- Insert data into the `holidays` table
+INSERT INTO holidays (holiday_date, reason) VALUES
+('2022-08-11', 'Rakhi'),
+('2022-08-15', 'Independence Day');
+
+SOLUTION 
+SELECT *,DATEDIFF(DAY,create_date,resolved_date)-2*DATEPART(WEEK,create_date,resolved_date)-NO_HOLIDAY AS NOS
+FROM
+(
+SELECT A.ticket_id,A.create_date,A.resolved_date,COUNT(B.holiday_date) AS NO_HOLIDAY
+FROM tickets A  LEFT JOIN holidays B
+ON B.holiday_date BETWEEN A.create_date AND A.resolved_date
+GROUP BY A.ticket_id,A.create_date,A.resolved_date)
+
+
+Problem 9:
+.Get the number of matches played, matches won, and losses for each team?
+-- Create table icc_world_cup to store match results
+CREATE TABLE icc_world_cup (
+    Team_1 VARCHAR(20),   -- Team 1 in the match
+    Team_2 VARCHAR(20),   -- Team 2 in the match
+    Winner VARCHAR(20)    -- Winner of the match
+);
+
+-- Insert match records into the icc_world_cup table
+INSERT INTO icc_world_cup VALUES ('India', 'SL', 'India');
+INSERT INTO icc_world_cup VALUES ('SL', 'Aus', 'Aus');
+INSERT INTO icc_world_cup VALUES ('SA', 'Eng', 'Eng');
+INSERT INTO icc_world_cup VALUES ('Eng', 'NZ', 'NZ');
+INSERT INTO icc_world_cup VALUES ('Aus', 'India', 'India');
+SOLUTION 
+SELECT TEAMS,COUNT(1) AS NOS_MATCH_PLAYED,SUM(WINF) AS MATCHESWON
+,COUNT(*)-SUM(WINF) AS NO_LOSS
+FROM
+(
+(SELECT Team_1 AS TEAMS,CASE WHEN Team_1=Winner THEN 1  END WINF
+FROM icc_world_cup)
+UNION ALL
+(SELECT Team_2 AS TEAMS,CASE WHEN Team_2=Winner THEN 1 END WINF
+FROM icc_world_cup)) AS T
+GROUP BY TEAMS
+ORDER BY MATCHESWON DESC
+
+
+Problem 10: Finding  new and repeat customers .using SQL
+-- Create table customer_orders with the specified columns
+CREATE TABLE customer_orders (
+    order_id INTEGER,          -- Unique identifier for the order
+    customer_id INTEGER,       -- Unique identifier for the customer
+    order_date DATE,           -- Date of the order
+    order_amount INTEGER       -- Amount of the order
+);
+-- Insert multiple records into the customer_orders table
+INSERT INTO customer_orders (order_id, customer_id, order_date, order_amount) 
+VALUES 
+    (1, 100, CAST('2022-01-01' AS DATE), 2000),
+    (2, 200, CAST('2022-01-01' AS DATE), 2500),
+    (3, 300, CAST('2022-01-01' AS DATE), 2100),
+    (4, 100, CAST('2022-01-02' AS DATE), 2000),
+    (5, 400, CAST('2022-01-02' AS DATE), 2200),
+    (6, 500, CAST('2022-01-02' AS DATE), 2700),
+    (7, 100, CAST('2022-01-03' AS DATE), 3000),
+    (8, 400, CAST('2022-01-03' AS DATE), 1000),
+    (9, 600, CAST('2022-01-03' AS DATE), 3000);
+SOLUTION 
+WITH CTE AS 
+(
+SELECT customer_id,MIN(order_date) AS FIRSTORDERDATE
+FROM customer_orders
+GROUP BY customer_id),
+CTE2 AS
+(
+SELECT B.*,A.FIRSTORDERDATE,CASE WHEN B.order_date=A.FIRSTORDERDATE THEN 1 ELSE 0 END AS FIRST_VISIT,
+CASE WHEN B.order_date<>A.FIRSTORDERDATE THEN 1 ELSE 0 END AS SECOND_VISIT
+FROM CTE  A JOIN customer_orders B
+ON A.customer_id=B.customer_id)
+SELECT order_date,SUM(FIRST_VISIT) AS NU,SUM(SECOND_VISIT) AS RU
+FROM CTE2
+GROUP BY order_date
+
+
+Problem 11: Analyze how many times employees (or entries) visit different floors and consolidate the resources they use.
+
+create table entries ( 
+name varchar(20),
+address varchar(20),
+email varchar(20),
+floor int,
+resources varchar(10));
+
+insert into entries 
+values ('A','Bangalore','A@gmail.com',1,'CPU'),('A','Bangalore','A1@gmail.com',1,'CPU'),('A','Bangalore','A2@gmail.com',2,'DESKTOP')
+,('B','Bangalore','B@gmail.com',2,'DESKTOP'),('B','Bangalore','B1@gmail.com',2,'DESKTOP'),('B','Bangalore','B2@gmail.com',1,'MONITOR')
+
+SOLUTION:
+
+WITH CTE AS 
+(
+SELECT  name,floor,NOLOORVISIT
+FROM 
+(
+SELECT name,floor,COUNT(*) AS NOLOORVISIT,RANK() OVER(PARTITION BY name ORDER BY COUNT(*)) AS RANK_FLOOR
+FROM entries
+GROUP BY name,floor) AS T
+WHERE   RANK_FLOOR=1)
+SELECT B.floor,A.name,COUNT(*) AS NOVISIT,GROUP_CONCAT(A.resources,',') AS MERGE
+FROM entries A  JOIN CTE B
+ON A.name=B.name
+GROUP BY A.name ,B.floor
+
+
+Problem 12-- Create a table named dates to store the given dates
+CREATE TABLE dates (
+    given_date DATE  -- Column to store the given date
+);
+-- Insert sample dates into the dates table
+INSERT INTO dates (given_date) VALUES 
+    (CAST('2023-06-01' AS DATE)), 
+    (CAST('2023-06-15' AS DATE)), 
+    (CAST('2023-06-20' AS DATE)),
+    (CAST('2023-07-05' AS DATE)),
+    (CAST('2023-07-11' AS DATE));
+
+SOLUTION 
+SELECT given_date,DATE_ADD(given_date,INTERVAL(8- DAYOFWEEK(given_date))%7 DAY) AS next_sunday
+                           FROM dates
+
+Problem 13-- Retrieve the sales amount for the last day of each of the last three months
+WITH last_days AS (
+    -- Find the last days of each of the last three months
+    SELECT DISTINCT
+        LAST_DAY(CURDATE() - INTERVAL 0 MONTH) AS last_day,
+        LAST_DAY(CURDATE() - INTERVAL 1 MONTH) AS last_day_prev_1,
+        LAST_DAY(CURDATE() - INTERVAL 2 MONTH) AS last_day_prev_2
+    FROM
+        sales
+)
+SELECT 
+    COALESCE(SUM(CASE WHEN order_date = last_days.last_day THEN order_amount END), 0) AS last_day_sales_current_month,
+    COALESCE(SUM(CASE WHEN order_date = last_days.last_day_prev_1 THEN order_amount END), 0) AS last_day_sales_previous_month_1,
+    COALESCE(SUM(CASE WHEN order_date = last_days.last_day_prev_2 THEN order_amount END), 0) AS last_day_sales_previous_month_2
+FROM 
+    sales
+JOIN
+    last_days
+ON 
+    order_date IN (last_days.last_day, last_days.last_day_prev_1, last_days.last_day_prev_2);
+
+
