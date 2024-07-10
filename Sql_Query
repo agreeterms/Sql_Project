@@ -14,6 +14,11 @@ Table of Contents
 12.Tracking Employee Visits to Floors
 13.Finding Next Sunday for Given Dates
 14.Retrieving Last Day Sales for Previous Months
+15. Group Consecutive Dates by State
+16. Extract First and Last Names from Customer Names
+17. Classify Game Interactions
+18. Identify Continuous Stock Shortages
+19. Handle Redundant City Distance Entries
 
 
 Problem 1: Identifying First and Last Call Recipients for Each Caller per Day
@@ -532,5 +537,176 @@ JOIN
     last_days
 ON 
     order_date IN (last_days.last_day, last_days.last_day_prev_1, last_days.last_day_prev_2);
+
+15. Group Consecutive Dates by State
+Problem Statement:
+How to group consecutive dates by state to identify continuous periods?
+sql
+Copy code
+WITH CTE AS 
+(
+    SELECT 
+        *,
+        ROW_NUMBER() OVER(PARTITION BY state ORDER BY date_value) AS RN,
+        DATE_ADD(date_value, INTERVAL -ROW_NUMBER() OVER(PARTITION BY state ORDER BY date_value) DAY) AS GROUPUP
+    FROM tasks
+    ORDER BY date_value ASC
+)
+SELECT state, STARTDATE, END_DATE
+FROM
+(
+    SELECT state, GROUPUP, MIN(date_value) AS STARTDATE, MAX(date_value) AS END_DATE
+    FROM CTE
+    GROUP BY GROUPUP, state
+) AS T;
+
+16. Extract First and Last Names from Customer Names
+Problem Statement:
+How to extract the first and last names from a full name string?
+sql
+Copy code
+CREATE TABLE customers (
+    customer_name VARCHAR(30)
+);
+
+INSERT INTO customers (customer_name) VALUES 
+('Ankit Bansal'),
+('Vishal Pratap Singh'),
+('Michael');
+
+SELECT 
+    customer_name,
+    SUBSTRING_INDEX(customer_name, ' ', 1) AS FIRST_NAME,
+    SUBSTRING_INDEX(customer_name, ' ', -1) AS LAST_NAME
+FROM customers;
+
+17. Classify Game Interactions
+Problem Statement:
+How to classify game interactions based on user activities and determine interaction types?
+sql
+Copy code
+CREATE TABLE user_interactions (
+    user_id VARCHAR(10),
+    event VARCHAR(15),
+    event_date DATE,
+    interaction_type VARCHAR(15),
+    game_id VARCHAR(10),
+    event_time TIME
+);
+
+-- Insert the data
+INSERT INTO user_interactions 
+VALUES
+('abc', 'game_start', '2024-01-01', null, 'ab0000', '10:00:00'),
+('def', 'game_start', '2024-01-01', null, 'ab0000', '10:00:00'),
+('def', 'send_emoji', '2024-01-01', 'emoji1', 'ab0000', '10:03:20'),
+('def', 'send_message', '2024-01-01', 'preloaded_quick', 'ab0000', '10:03:49'),
+('abc', 'send_gift', '2024-01-01', 'gift1', 'ab0000', '10:04:40'),
+('abc', 'game_end', '2024-01-01', NULL, 'ab0000', '10:10:00'),
+('def', 'game_end', '2024-01-01', NULL, 'ab0000', '10:10:00'),
+('abc', 'game_start', '2024-01-01', null, 'ab9999', '10:00:00'),
+('def', 'game_start', '2024-01-01', null, 'ab9999', '10:00:00'),
+('abc', 'send_message', '2024-01-01', 'custom_typed', 'ab9999', '10:02:43'),
+('abc', 'send_gift', '2024-01-01', 'gift1', 'ab9999', '10:04:40'),
+('abc', 'game_end', '2024-01-01', NULL, 'ab9999', '10:10:00'),
+('def', 'game_end', '2024-01-01', NULL, 'ab9999', '10:10:00'),
+('abc', 'game_start', '2024-01-01', null, 'ab1111', '10:00:00'),
+('def', 'game_start', '2024-01-01', null, 'ab1111', '10:00:00'),
+('abc', 'game_end', '2024-01-01', NULL, 'ab1111', '10:10:00'),
+('def', 'game_end', '2024-01-01', NULL, 'ab1111', '10:10:00'),
+('abc', 'game_start', '2024-01-01', null, 'ab1234', '10:00:00'),
+('def', 'game_start', '2024-01-01', null, 'ab1234', '10:00:00'),
+('abc', 'send_message', '2024-01-01', 'custom_typed', 'ab1234', '10:02:43'),
+('def', 'send_emoji', '2024-01-01', 'emoji1', 'ab1234', '10:03:20'),
+('def', 'send_message', '2024-01-01', 'preloaded_quick', 'ab1234', '10:03:49'),
+('abc', 'send_gift', '2024-01-01', 'gift1', 'ab1234', '10:04:40'),
+('abc', 'game_end', '2024-01-01', NULL, 'ab1234', '10:10:00'),
+('def', 'game_end', '2024-01-01', NULL, 'ab1234', '10:10:00');
+
+WITH CTE AS
+(
+    SELECT game_id,
+    CASE 
+        WHEN COUNT(interaction_type) = 0 THEN 'No social Interaction' 
+        WHEN COUNT(DISTINCT CASE WHEN interaction_type IS NOT NULL THEN user_id END) = 1 THEN 'ONE SIDED INTERACTION'
+        WHEN COUNT(DISTINCT CASE WHEN interaction_type IS NOT NULL THEN user_id END) = 2 AND COUNT(DISTINCT CASE WHEN interaction_type = 'custom_typed' THEN user_id END) = 0 THEN 'Both sided interaction'
+        WHEN COUNT(DISTINCT CASE WHEN interaction_type IS NOT NULL THEN user_id END) = 2 AND COUNT(DISTINCT CASE WHEN interaction_type = 'custom_typed' THEN user_id END) >= 1 THEN 'Both side interaction with custom type'
+    END AS GAME_TYPE
+    FROM user_interactions
+    GROUP BY game_id
+)
+SELECT GAME_TYPE, COUNT(*) * 100 / COUNT(*) OVER() AS PER_DIST
+FROM CTE
+GROUP BY GAME_TYPE;
+
+18. Identify Continuous Stock Shortages
+Problem Statement:
+How to identify periods of continuous stock shortages?
+sql
+Copy code
+CREATE TABLE stock (
+    supplier_id INT,
+    product_id INT,
+    stock_quantity INT,
+    record_date DATE
+);
+
+-- Insert the data
+DELETE FROM stock;
+INSERT INTO stock (supplier_id, product_id, stock_quantity, record_date)
+VALUES
+    (1, 1, 60, '2022-01-01'),
+    (1, 1, 40, '2022-01-02'),
+    (1, 1, 35, '2022-01-03'),
+    (1, 1, 45, '2022-01-04'),
+    (1, 1, 51, '2022-01-06'),
+    (1, 1, 55, '2022-01-09'),
+    (1, 1, 25, '2022-01-10'),
+    (1, 1, 48, '2022-01-11'),
+    (1, 1, 45, '2022-01-15'),
+    (1, 1, 38, '2022-01-16'),
+    (1, 2, 45, '2022-01-08'),
+    (1, 2, 40, '2022-01-09'),
+    (2, 1, 45, '2022-01-06'),
+    (2, 1, 55, '2022-01-07'),
+    (2, 2, 45, '2022-01-08'),
+    (2, 2, 48, '2022-01-09'),
+    (2, 2, 35, '2022-01-10'),
+    (2, 2, 52, '2022-01-15'),
+    (2, 2, 23, '2022-01-16');
+
+WITH CTE AS
+(
+    SELECT supplier_id, product_id, record_date, LAG(record_date, 1, record_date) OVER(PARTITION BY supplier_id, product_id ORDER BY record_date) AS PREVDATE, DATEDIFF(record_date, LAG(record_date, 1, record_date) OVER(PARTITION BY supplier_id, product_id ORDER BY record_date)) AS diff
+    FROM stock
+    WHERE stock_quantity < 50
+),
+cte2 AS
+(
+    SELECT *, CASE WHEN diff <= 1 THEN 0 ELSE 1 END flag,
+    SUM(CASE WHEN diff <= 1 THEN 0 ELSE 1 END) OVER(PARTITION BY supplier_id, product_id ORDER BY record_date) AS grpid
+    FROM CTE
+)
+SELECT supplier_id, product_id, grpid, COUNT(*) AS NO_RECORDS, MIN(record_date) AS FIRSTDATE
+FROM cte2
+GROUP BY supplier_id, product_id, grpid
+HAVING COUNT(*) >= 2;
+
+19. Handle Redundant City Distance Entries
+Problem Statement:
+How to handle redundant city distance entries?
+sql
+Copy code
+CREATE TABLE city_distance
+(
+    distance INT,
+    source VARCHAR(512),
+    destination VARCHAR(512)
+);
+
+INSERT INTO city_distance(distance, source, destination) VALUES ('100', 'New Delhi', 'Panipat');
+INSERT INTO city_distance(distance
+
+
 
 
